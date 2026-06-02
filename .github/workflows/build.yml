@@ -13,24 +13,26 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-            snake_binary:  snake-server-linux
-            mine_binary:   mine-server-linux
+            snake_binary: snake-server-linux
+            mine_binary: mine-server-linux
             client_binary: game-client-linux
           - os: macos-latest
-            snake_binary:  snake-server-macos
-            mine_binary:   mine-server-macos
+            snake_binary: snake-server-macos
+            mine_binary: mine-server-macos
             client_binary: game-client-macos
           - os: windows-latest
-            snake_binary:  snake-server-windows.exe
-            mine_binary:   mine-server-windows.exe
+            snake_binary: snake-server-windows.exe
+            mine_binary: mine-server-windows.exe
             client_binary: game-client-windows.exe
 
     runs-on: ${{ matrix.os }}
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-go@v5
+      - name: Setup Go
+        uses: actions/setup-go@v5
         with:
           go-version: '1.21'
           cache: true
@@ -73,9 +75,11 @@ jobs:
       contents: write
 
     steps:
-      - uses: actions/download-artifact@v4
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
 
-      - uses: softprops/action-gh-release@v2
+      - name: Create release
+        uses: softprops/action-gh-release@v2
         with:
           name: "multiplayer-terminal-games ${{ github.ref_name }}"
           body: |
@@ -83,36 +87,34 @@ jobs:
 
             Real-time multiplayer Snake and Minesweeper in your terminal.
 
-            | Binary | Platform | Description |
-            |--------|----------|-------------|
-            | `snake-server-linux` | Linux | Snake WebSocket server |
-            | `mine-server-linux` | Linux | Minesweeper WebSocket server |
-            | `game-client-linux` | Linux | Unified terminal client |
-            | `snake-server-macos` | macOS | Snake server |
-            | `mine-server-macos` | macOS | Minesweeper server |
-            | `game-client-macos` | macOS | Client |
-            | `snake-server-windows.exe` | Windows | Snake server |
-            | `mine-server-windows.exe` | Windows | Minesweeper server |
-            | `game-client-windows.exe` | Windows | Client |
+            ### Binaries
+
+            | File | Platform |
+            |------|----------|
+            | snake-server-linux | Linux - Snake server |
+            | mine-server-linux | Linux - Minesweeper server |
+            | game-client-linux | Linux - Client |
+            | snake-server-macos | macOS - Snake server |
+            | mine-server-macos | macOS - Minesweeper server |
+            | game-client-macos | macOS - Client |
+            | snake-server-windows.exe | Windows - Snake server |
+            | mine-server-windows.exe | Windows - Minesweeper server |
+            | game-client-windows.exe | Windows - Client |
 
             ### Quick start
 
-```bash
-            # Server machine
-            chmod +x snake-server-linux mine-server-linux
+            chmod +x snake-server-linux mine-server-linux game-client-linux
             ./snake-server-linux &
             ./mine-server-linux &
+            ./game-client-linux -name yourname
 
-            # Any terminal on the network
-            chmod +x game-client-linux
-            ./game-client-linux -name yourname -server <server-ip>:8080
-```
+            ### Features
 
-            ### What's in this release
-            - Snake: 10 levels, 3 multiplayer modes, fruits + poison
-            - Minesweeper: 3 difficulties, solo + co-op + competitive
+            - Snake with 10 levels, 3 multiplayer modes, fruits and poison
+            - Minesweeper with 3 difficulties, solo, cooperative, and competitive modes
             - 29 passing tests
-            - Binary protocol — ~65 bytes per game frame
+            - Binary protocol, approximately 65 bytes per game frame
+            - Graceful shutdown on SIGINT and SIGTERM
           files: |
             snake-server-ubuntu-latest/snake-server-linux
             mine-server-ubuntu-latest/mine-server-linux
