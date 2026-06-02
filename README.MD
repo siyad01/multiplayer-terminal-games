@@ -132,72 +132,110 @@ go install github.com/siyad01/multiplayer-terminal-games/cmd/client@latest
 | `Q` | Quit |
 
 ---
-
 ## Architecture
 
-```
+```text
 multiplayer-terminal-games/
 ├── cmd/
-│   ├── server/       # Snake WebSocket server  (:8080)
-│   ├── mineserver/   # Minesweeper server       (:8081)
+│   ├── server/       # Snake WebSocket server (:8080)
+│   ├── mineserver/   # Minesweeper server (:8081)
 │   └── client/       # Unified terminal client
 │
 └── internal/
-    ├── protocol/     # Binary wire format — shared by client + server
-    ├── snake/        # Snake game logic + loop (pure, no networking)
-    ├── minesweeper/  # Minesweeper logic + loop + renderer
-    ├── server/       # Hub: WebSocket connection manager
-    └── client/       # Snake renderer + input handler
+    ├── protocol/     # Binary wire format shared by client and server
+    ├── snake/        # Snake game logic (pure, no networking)
+    ├── minesweeper/  # Minesweeper logic, loop, and renderer
+    ├── server/       # WebSocket hub and connection manager
+    └── client/       # Terminal renderer and input handling
 ```
-[Client terminal]
-│
-│  WebSocket (binary protocol)
-▼
-[Hub] ──► [Game Loop goroutine]  ←── ticker / events
-◄── broadcasts every tick/action
 
-**Key design decisions:**
+### Runtime Model
 
-- **Single-owner concurrency** — game state is owned by exactly one goroutine. All other goroutines communicate through typed channels. No mutexes on game state.
-- **Binary protocol** — custom binary encoding, not JSON. Every message has a 1-byte type header. Game state for a 30×20 board = ~65 bytes per frame.
-- **Event-driven Minesweeper** — no ticker. The loop only wakes on player actions.
-- **Safe first click** — mines placed after first reveal, guaranteed safe 3×3 zone.
+```text
+[Client Terminal]
+        │
+        │ WebSocket (binary protocol)
+        ▼
+      [Hub]
+        │
+        ▼
+[Game Loop Goroutine]
+        ▲
+        │
+   ticker / events
 
----
+Broadcasts game state updates every tick or player action.
+```
 
-## How the protocol works
+### Key Design Decisions
 
-Every message on the wire starts with a 1-byte type:
-
-Client → Server          Server → Client
-──────────────           ───────────────
-0x01  Join               0x10  GameState (board snapshot)
-0x02  Input (direction)  0x11  PlayerJoined
-0x03  Leave              0x12  PlayerLeft
-0x04  StartGame          0x13  GameOver
-0x05  SetTime            0x14  Welcome (assigned player ID)
-0x06  PlayAgain          0x15  LobbyState
-0x07  NextLevel          0x16  TimerUpdate
-0x08  SetMode            0x17  LevelUp
-0x09  SetMineMode        0x18  LevelComplete
-0x20  MineReveal         0x19  GameComplete
-0x21  MineFlag           0x1A  GameMode
-0x22  MineCursor         0x30  MineState
-0x31  MineUpdate (partial)
-0x32  MineWin
-0x33  MineLose
-0x34  MineCursors
+* **Single-owner concurrency** — game state is owned by exactly one goroutine. All other goroutines communicate through typed channels. No mutexes are required for game state.
+* **Binary protocol** — custom binary encoding rather than JSON. Every message begins with a 1-byte type header. A typical 30×20 board update is approximately 65 bytes.
+* **Event-driven Minesweeper** — no ticker loop. The game wakes only when player actions occur.
+* **Safe first click** — mines are generated after the first reveal, guaranteeing a safe 3×3 starting area.
 
 ---
 
-## Test coverage
-29 tests across 4 packages — 0 failures
-internal/protocol     12 tests  wire format round-trips
-internal/snake        11 tests  game logic + food eating (all 4 directions)
-internal/minesweeper   9 tests  mine placement, flood fill, flag toggle
-internal/server        4 tests  hub ID recycling, broadcast, max players
+## How the Protocol Works
 
-Run tests:
+Every message on the wire begins with a 1-byte message type.
+
+### Client → Server
+
+| Type   | Message           |
+| ------ | ----------------- |
+| `0x01` | Join              |
+| `0x02` | Input (direction) |
+| `0x03` | Leave             |
+| `0x04` | StartGame         |
+| `0x05` | SetTime           |
+| `0x06` | PlayAgain         |
+| `0x07` | NextLevel         |
+| `0x08` | SetMode           |
+| `0x09` | SetMineMode       |
+| `0x20` | MineReveal        |
+| `0x21` | MineFlag          |
+| `0x22` | MineCursor        |
+
+### Server → Client
+
+| Type   | Message              |
+| ------ | -------------------- |
+| `0x10` | GameState            |
+| `0x11` | PlayerJoined         |
+| `0x12` | PlayerLeft           |
+| `0x13` | GameOver             |
+| `0x14` | Welcome              |
+| `0x15` | LobbyState           |
+| `0x16` | TimerUpdate          |
+| `0x17` | LevelUp              |
+| `0x18` | LevelComplete        |
+| `0x19` | GameComplete         |
+| `0x1A` | GameMode             |
+| `0x30` | MineState            |
+| `0x31` | MineUpdate (partial) |
+| `0x32` | MineWin              |
+| `0x33` | MineLose             |
+| `0x34` | MineCursors          |
+
+---
+
+## Test Coverage
+
+> Update this section to match the actual test count reported by `go test ./...`.
+
+Example:
+
+```text
+36 tests across 4 packages — 0 failures
+
+internal/protocol      12 tests  wire format round-trips
+internal/snake         11 tests  game logic and food handling
+internal/minesweeper    9 tests  mine placement, flood fill, flag toggling
+internal/server         4 tests  hub behavior and player management
+```
+
+Run all tests:
 
 ```bash
 go test ./...
