@@ -1,0 +1,125 @@
+name: Build and Test
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+
+jobs:
+  test:
+    name: Test on ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            snake_binary:  snake-server-linux
+            mine_binary:   mine-server-linux
+            client_binary: game-client-linux
+          - os: macos-latest
+            snake_binary:  snake-server-macos
+            mine_binary:   mine-server-macos
+            client_binary: game-client-macos
+          - os: windows-latest
+            snake_binary:  snake-server-windows.exe
+            mine_binary:   mine-server-windows.exe
+            client_binary: game-client-windows.exe
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+          cache: true
+
+      - name: Run tests
+        run: go test ./...
+
+      - name: Build snake server
+        run: go build -o ${{ matrix.snake_binary }} ./cmd/server
+
+      - name: Build mine server
+        run: go build -o ${{ matrix.mine_binary }} ./cmd/mineserver
+
+      - name: Build client
+        run: go build -o ${{ matrix.client_binary }} ./cmd/client
+
+      - name: Upload snake server
+        uses: actions/upload-artifact@v4
+        with:
+          name: snake-server-${{ matrix.os }}
+          path: ${{ matrix.snake_binary }}
+
+      - name: Upload mine server
+        uses: actions/upload-artifact@v4
+        with:
+          name: mine-server-${{ matrix.os }}
+          path: ${{ matrix.mine_binary }}
+
+      - name: Upload client
+        uses: actions/upload-artifact@v4
+        with:
+          name: game-client-${{ matrix.os }}
+          path: ${{ matrix.client_binary }}
+
+  release:
+    needs: test
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/download-artifact@v4
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          name: "multiplayer-terminal-games ${{ github.ref_name }}"
+          body: |
+            ## multiplayer-terminal-games ${{ github.ref_name }}
+
+            Real-time multiplayer Snake and Minesweeper in your terminal.
+
+            | Binary | Platform | Description |
+            |--------|----------|-------------|
+            | `snake-server-linux` | Linux | Snake WebSocket server |
+            | `mine-server-linux` | Linux | Minesweeper WebSocket server |
+            | `game-client-linux` | Linux | Unified terminal client |
+            | `snake-server-macos` | macOS | Snake server |
+            | `mine-server-macos` | macOS | Minesweeper server |
+            | `game-client-macos` | macOS | Client |
+            | `snake-server-windows.exe` | Windows | Snake server |
+            | `mine-server-windows.exe` | Windows | Minesweeper server |
+            | `game-client-windows.exe` | Windows | Client |
+
+            ### Quick start
+
+```bash
+            # Server machine
+            chmod +x snake-server-linux mine-server-linux
+            ./snake-server-linux &
+            ./mine-server-linux &
+
+            # Any terminal on the network
+            chmod +x game-client-linux
+            ./game-client-linux -name yourname -server <server-ip>:8080
+```
+
+            ### What's in this release
+            - Snake: 10 levels, 3 multiplayer modes, fruits + poison
+            - Minesweeper: 3 difficulties, solo + co-op + competitive
+            - 29 passing tests
+            - Binary protocol — ~65 bytes per game frame
+          files: |
+            snake-server-ubuntu-latest/snake-server-linux
+            mine-server-ubuntu-latest/mine-server-linux
+            game-client-ubuntu-latest/game-client-linux
+            snake-server-macos-latest/snake-server-macos
+            mine-server-macos-latest/mine-server-macos
+            game-client-macos-latest/game-client-macos
+            snake-server-windows-latest/snake-server-windows.exe
+            mine-server-windows-latest/mine-server-windows.exe
+            game-client-windows-latest/game-client-windows.exe
